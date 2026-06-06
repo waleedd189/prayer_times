@@ -658,6 +658,7 @@
             }
         }
     </style>
+<base target="_blank">
 </head>
 <body>
     <div class="bg-pattern">
@@ -904,16 +905,31 @@
         <div class="qibla-section">
             <div class="qibla-card">
                 <div class="qibla-compass">
-                    <svg viewBox="0 0 100 100" fill="none">
-                        <circle cx="50" cy="50" r="45" stroke="var(--border)" stroke-width="1"/>
-                        <circle cx="50" cy="50" r="35" stroke="var(--border)" stroke-width="0.5" stroke-dasharray="4 4"/>
-                        <text x="50" y="12" text-anchor="middle" fill="var(--muted)" font-size="8" font-family="Tajawal">ش</text>
-                        <text x="50" y="92" text-anchor="middle" fill="var(--muted)" font-size="8" font-family="Tajawal">ج</text>
-                        <text x="12" y="53" text-anchor="middle" fill="var(--muted)" font-size="8" font-family="Tajawal">غ</text>
-                        <text x="88" y="53" text-anchor="middle" fill="var(--muted)" font-size="8" font-family="Tajawal">ق</text>
-                        <g class="qibla-arrow" id="qiblaArrow" transform="rotate(0, 50, 50)">
-                            <polygon points="50,15 45,50 50,45 55,50" fill="var(--accent)"/>
-                            <circle cx="50" cy="50" r="3" fill="var(--accent)"/>
+                    <svg viewBox="0 0 200 200" fill="none">
+                        <!-- Outer circle -->
+                        <circle cx="100" cy="100" r="90" stroke="var(--border)" stroke-width="2"/>
+                        <!-- Inner circle -->
+                        <circle cx="100" cy="100" r="70" stroke="var(--border)" stroke-width="1" stroke-dasharray="6 6"/>
+                        <!-- Center point -->
+                        <circle cx="100" cy="100" r="6" fill="var(--accent)"/>
+                        <!-- Cardinal directions -->
+                        <text x="100" y="22" text-anchor="middle" fill="var(--muted)" font-size="16" font-family="Tajawal" font-weight="bold">ش</text>
+                        <text x="100" y="188" text-anchor="middle" fill="var(--muted)" font-size="16" font-family="Tajawal" font-weight="bold">ج</text>
+                        <text x="18" y="106" text-anchor="middle" fill="var(--muted)" font-size="16" font-family="Tajawal" font-weight="bold">غ</text>
+                        <text x="182" y="106" text-anchor="middle" fill="var(--muted)" font-size="16" font-family="Tajawal" font-weight="bold">ق</text>
+                        <!-- Kaaba icon at center -->
+                        <g transform="translate(92, 92)">
+                            <rect x="0" y="0" width="16" height="16" rx="2" fill="var(--accent)" opacity="0.3"/>
+                            <rect x="2" y="2" width="12" height="12" rx="1" fill="var(--accent)" opacity="0.6"/>
+                        </g>
+                        <!-- Qibla arrow - pointing to Kaaba direction -->
+                        <g id="qiblaArrow" transform="rotate(0, 100, 100)">
+                            <!-- Arrow line -->
+                            <line x1="100" y1="100" x2="100" y2="25" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"/>
+                            <!-- Arrow head -->
+                            <polygon points="100,15 90,35 110,35" fill="var(--accent)"/>
+                            <!-- Glow effect -->
+                            <circle cx="100" cy="100" r="40" fill="var(--accent)" opacity="0.05"/>
                         </g>
                     </svg>
                 </div>
@@ -1517,8 +1533,13 @@
     function updateQibla() {
         const city = cityPrayerTimes[currentCity];
         if (city && city.qibla !== undefined) {
-            qiblaDegree.textContent = city.qibla.toFixed(1) + '°';
-            qiblaArrow.setAttribute('transform', 'rotate(' + city.qibla + ', 50, 50)');
+            const degree = city.qibla;
+            qiblaDegree.textContent = degree.toFixed(1) + '°';
+            // SVG viewBox is 200x200, center is at 100,100
+            // Qibla angle: 0 = North, 90 = East, 180 = South, 270 = West
+            // But our arrow points UP (North) by default
+            // So we rotate by the qibla angle
+            qiblaArrow.setAttribute('transform', 'rotate(' + degree + ', 100, 100)');
         }
     }
 
