@@ -1,23 +1,29 @@
-const CACHE_NAME = 'prayer-app-v1';
-const ASSETS = [
-    '/',
-    '/index.html',
-    'https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&family=Amiri:ital@0;1&display=swap'
+const CACHE_NAME = 'prayer-app-v2';
+
+// ملفات يتم تخزينها عند التثبيت - مسارات نسبية
+const STATIC_ASSETS = [
+    './',
+    './prayer_times.html',
+    './manifest.json'
 ];
 
+// ======= INSTALL =======
 self.addEventListener('install', function(event) {
     event.waitUntil(
         caches.open(CACHE_NAME).then(function(cache) {
-            return cache.addAll([
-                '/',
-                '/index.html'
-            ]);
+            // نخزن الملفات الأساسية - نتجاهل الفشل عشان manifest.json ممكن ميكونش موجود
+            return Promise.allSettled(
+                STATIC_ASSETS.map(url => 
+                    cache.add(url).catch(err => console.log('Cache skip:', url, err))
+                )
+            );
         }).then(function() {
             return self.skipWaiting();
         })
     );
 });
 
+// ======= ACTIVATE =======
 self.addEventListener('activate', function(event) {
     event.waitUntil(
         caches.keys().then(function(cacheNames) {
@@ -34,27 +40,33 @@ self.addEventListener('activate', function(event) {
     );
 });
 
+// ======= FETCH =======
 self.addEventListener('fetch', function(event) {
-    const url = new URL(event.request.url);
+    const url = event.request.url;
 
-    // راديو البث: دايماً من الشبكة (مش بنكاشه)
-    if (event.request.url.includes('qurango.net') ||
-        event.request.url.includes('api.anthropic.com') ||
-        event.request.url.includes('workers.dev')) {
+    // راديو + API: دايماً من الشبكة (مش بنكاشه)
+    if (url.includes('qurango.net') ||
+        url.includes('api.anthropic.com') ||
+        url.includes('workers.dev') ||
+        url.includes('aladhan.com')) {
         event.respondWith(fetch(event.request));
         return;
     }
 
-    // Google Fonts: cache-first
-    if (event.request.url.includes('fonts.googleapis.com') ||
-        event.request.url.includes('fonts.gstatic.com')) {
+    // Google Fonts: كاشها للـ offline
+    if (url.includes('fonts.googleapis.com') || url.includes('fonts.gstatic.com')) {
         event.respondWith(
             caches.open(CACHE_NAME).then(function(cache) {
                 return cache.match(event.request).then(function(cached) {
                     if (cached) return cached;
                     return fetch(event.request).then(function(response) {
-                        cache.put(event.request, response.clone());
+                        if (response && response.status === 200) {
+                            cache.put(event.request, response.clone());
+                        }
                         return response;
+                    }).catch(function() {
+                        // الفونتس مش متاحة offline - مشكلش، عندنا system fonts كـ fallback
+                        return new Response('', { status: 200, headers: { 'Content-Type': 'text/css' } });
                     });
                 });
             })
@@ -62,7 +74,7 @@ self.addEventListener('fetch', function(event) {
         return;
     }
 
-    // كل حاجة تانية: cache-first ثم network
+    // كل حاجة تانية: cache-first ثم network ثم fallback للصفحة الرئيسية
     event.respondWith(
         caches.match(event.request).then(function(cached) {
             if (cached) return cached;
@@ -77,8 +89,12 @@ self.addEventListener('fetch', function(event) {
                 });
                 return response;
             }).catch(function() {
-                // لو مفيش نت ومفيش كاش - رجّع صفحة الـ index
-                return caches.match('/index.html');
+                // offline ومفيش كاش: رجّع الصفحة الرئيسية من الكاش
+                return caches.match('./prayer_times.html') || 
+                       caches.match('./') ||
+                       new Response('<h1>لا يوجد اتصال بالإنترنت</h1>', {
+                           headers: { 'Content-Type': 'text/html; charset=utf-8' }
+                       });
             });
         })
     );
