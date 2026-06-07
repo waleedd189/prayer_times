@@ -7,6 +7,21 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* Offline font fallbacks - Arabic system fonts */
+        @font-face {
+            font-family: 'Tajawal';
+            font-style: normal;
+            font-weight: 400;
+            src: local('Tajawal'), local('Arial Arabic'), local('Geeza Pro'), local('Simplified Arabic');
+        }
+        @font-face {
+            font-family: 'Amiri';
+            font-style: normal;
+            font-weight: 400;
+            src: local('Amiri'), local('Traditional Arabic'), local('Arabic Typesetting');
+        }
+    </style>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0a0f1a">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -2164,9 +2179,7 @@
         deferredPrompt = null;
     });
 
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('data:text/javascript;base64,' + btoa('const CACHE_NAME="prayer-times-v1";const urlsToCache=["/","/manifest.json"];self.addEventListener("install",e=>{e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(urlsToCache)));self.skipWaiting()});self.addEventListener("fetch",e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))});')).then(function(r){console.log("SW registered",r)}).catch(function(e){console.log("SW failed",e)});
-    }
+    // Service Worker registered below
 
     // ==================== INITIALIZATION ====================
     async function init() {
@@ -2301,8 +2314,26 @@
 
     <script>
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js').then(function(reg) {
+            navigator.serviceWorker.register('./sw.js', { scope: './' }).then(function(reg) {
                 console.log('SW registered:', reg.scope);
+                // بعد تسجيل الـ SW، نكاش الصفحة الحالية يدوياً
+                if (reg.installing) {
+                    reg.installing.addEventListener('statechange', function() {
+                        if (this.state === 'activated') {
+                            // نكاش الصفحة الحالية
+                            caches.open('prayer-app-v2').then(function(cache) {
+                                cache.add(window.location.href);
+                            });
+                        }
+                    });
+                } else if (reg.active) {
+                    // الـ SW شغال بالفعل - نأكد إن الصفحة متكاشة
+                    caches.open('prayer-app-v2').then(function(cache) {
+                        cache.match(window.location.href).then(function(match) {
+                            if (!match) cache.add(window.location.href);
+                        });
+                    });
+                }
             }).catch(function(err) {
                 console.log('SW registration failed:', err);
             });
