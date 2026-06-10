@@ -7,21 +7,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <style>
-        /* Offline font fallbacks - Arabic system fonts */
-        @font-face {
-            font-family: 'Tajawal';
-            font-style: normal;
-            font-weight: 400;
-            src: local('Tajawal'), local('Arial Arabic'), local('Geeza Pro'), local('Simplified Arabic');
-        }
-        @font-face {
-            font-family: 'Amiri';
-            font-style: normal;
-            font-weight: 400;
-            src: local('Amiri'), local('Traditional Arabic'), local('Arabic Typesetting');
-        }
-    </style>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0a0f1a">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -911,6 +896,58 @@
             margin-top: 0.5rem; opacity: 0.7;
         }
 
+        
+        /* Prayer Selector */
+        .prayer-selector-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.4rem;
+            margin-top: 0.6rem;
+        }
+        .prayer-check-btn {
+            display: flex; align-items: center; justify-content: center;
+            gap: 0.3rem; padding: 0.4rem 0.3rem;
+            border-radius: 8px; border: 1px solid var(--border);
+            background: rgba(255,255,255,0.04);
+            color: var(--muted); font-family: 'Tajawal', sans-serif;
+            font-size: 0.8rem; cursor: pointer;
+            transition: all 0.2s ease; user-select: none;
+        }
+        .prayer-check-btn.selected {
+            background: rgba(212,168,83,0.2);
+            border-color: var(--accent);
+            color: var(--accent);
+            font-weight: 700;
+        }
+        .prayer-check-btn .check-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--muted); flex-shrink: 0;
+            transition: background 0.2s;
+        }
+        .prayer-check-btn.selected .check-dot { background: var(--accent); }
+
+        /* Adhan Sound Toggle */
+        .adhan-sound-row {
+            display: flex; align-items: center;
+            justify-content: space-between;
+            margin-top: 0.75rem; padding-top: 0.75rem;
+            border-top: 1px solid var(--border);
+        }
+        .adhan-sound-label {
+            font-size: 0.9rem; color: var(--fg);
+            display: flex; align-items: center; gap: 0.4rem;
+        }
+        .adhan-selector {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            color: var(--fg); padding: 0.35rem 0.6rem;
+            border-radius: 8px; font-family: 'Tajawal', sans-serif;
+            font-size: 0.82rem; cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .adhan-selector:focus { outline: none; border-color: var(--accent); }
+        .adhan-selector option { background: #1a1f2e; }
+
         </style>
 </head>
 <body>
@@ -966,6 +1003,31 @@
                     <input type="checkbox" id="prePrayerToggle">
                     <span class="toggle-slider"></span>
                 </label>
+            </div>
+
+            <div class="setting-row" style="flex-direction:column;align-items:flex-start;gap:0.5rem">
+                <div>
+                    <div class="setting-label">🕌 الصلوات المُنبَّه عليها</div>
+                    <div class="setting-desc">اختر الصلوات اللي تحب تتذكرها</div>
+                </div>
+                <div class="prayer-selector-grid" id="prayerSelectorGrid">
+                    <button class="prayer-check-btn selected" data-prayer="fajr"><span class="check-dot"></span>الفجر</button>
+                    <button class="prayer-check-btn selected" data-prayer="dhuhr"><span class="check-dot"></span>الظهر</button>
+                    <button class="prayer-check-btn selected" data-prayer="asr"><span class="check-dot"></span>العصر</button>
+                    <button class="prayer-check-btn selected" data-prayer="maghrib"><span class="check-dot"></span>المغرب</button>
+                    <button class="prayer-check-btn selected" data-prayer="isha"><span class="check-dot"></span>العشاء</button>
+                    <button class="prayer-check-btn" data-prayer="sunrise"><span class="check-dot"></span>الشروق</button>
+                </div>
+                <div class="adhan-sound-row" style="width:100%">
+                    <span class="adhan-sound-label">🔊 صوت الأذان عند الوقت</span>
+                    <select class="adhan-selector" id="adhanSoundSelect">
+                        <option value="none">بدون صوت</option>
+                        <option value="mecca" selected>مكة المكرمة</option>
+                        <option value="madinah">المدينة المنورة</option>
+                        <option value="mishary">مشاري العفاسي</option>
+                        <option value="husary">الحصري</option>
+                    </select>
+                </div>
             </div>
 
             <div class="setting-row">
@@ -1330,6 +1392,18 @@
     let prePrayerEnabled = false;
     let postPrayerEnabled = false;
     let notifyBeforeMinutes = 10;
+    let enabledPrayers = new Set(['fajr', 'dhuhr', 'asr', 'maghrib', 'isha']);
+    let adhanSoundPref = 'mecca';
+    let adhanAudioEl = null;
+    let adhanNotifiedToday = new Set();
+
+    // Adhan audio URLs (short adhan clips from public domain)
+    const ADHAN_URLS = {
+        mecca:   'https://islamicfinder.org/prayer-adhan/haramain-makkah.mp3',
+        madinah: 'https://islamicfinder.org/prayer-adhan/haramain-madina.mp3',
+        mishary: 'https://islamicfinder.org/prayer-adhan/mishary-rashid.mp3',
+        husary:  'https://islamicfinder.org/prayer-adhan/quran-husary.mp3'
+    };
     let notifyAfterMinutes = 10;
     let soundEnabled = false;
     let dstEnabled = true;
@@ -1625,6 +1699,8 @@
     // ==================== NOTIFICATIONS ====================
     function checkPrePrayerNotifications(nextPrayer) {
         if (!prePrayerEnabled) return;
+        // Respect enabled prayers list
+        if (!enabledPrayers.has(nextPrayer.name)) return;
         const notificationKey = 'pre_' + nextPrayer.name + '_' + nextPrayer.time + '_' + new Date().toDateString();
         const minutesUntil = nextPrayer.minutesUntil;
         if (minutesUntil <= notifyBeforeMinutes && minutesUntil > 0 && !notifiedPrayers.has(notificationKey)) {
@@ -1644,7 +1720,7 @@
         const currentMinutes = now.getHours() * 60 + now.getMinutes();
         const currentSeconds = now.getSeconds();
         if (currentSeconds !== 0) return;
-        const prayers = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
+        const prayers = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'].filter(function(p){ return enabledPrayers.has(p); });
         for (let i = 0; i < prayers.length; i++) {
             const prayerKey = prayers[i];
             const time = getPrayerTime(currentCity, prayerKey);
@@ -2179,7 +2255,9 @@
         deferredPrompt = null;
     });
 
-    // Service Worker registered below
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('data:text/javascript;base64,' + btoa('const CACHE_NAME="prayer-times-v1";const urlsToCache=["/","/manifest.json"];self.addEventListener("install",e=>{e.waitUntil(caches.open(CACHE_NAME).then(c=>c.addAll(urlsToCache)));self.skipWaiting()});self.addEventListener("fetch",e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))});')).then(function(r){console.log("SW registered",r)}).catch(function(e){console.log("SW failed",e)});
+    }
 
     // ==================== INITIALIZATION ====================
     async function init() {
@@ -2193,8 +2271,11 @@
         initDhikr();
         initSunnah();
         initRadio();
+        initPrayerSelector();
+        initAdhanSound();
 
         setInterval(function() {
+            checkAdhanTime();
             updateCurrentTime();
             updateNextPrayer();
         }, 1000);
@@ -2314,26 +2395,8 @@
 
     <script>
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('./sw.js', { scope: './' }).then(function(reg) {
+            navigator.serviceWorker.register('/sw.js').then(function(reg) {
                 console.log('SW registered:', reg.scope);
-                // بعد تسجيل الـ SW، نكاش الصفحة الحالية يدوياً
-                if (reg.installing) {
-                    reg.installing.addEventListener('statechange', function() {
-                        if (this.state === 'activated') {
-                            // نكاش الصفحة الحالية
-                            caches.open('prayer-app-v2').then(function(cache) {
-                                cache.add(window.location.href);
-                            });
-                        }
-                    });
-                } else if (reg.active) {
-                    // الـ SW شغال بالفعل - نأكد إن الصفحة متكاشة
-                    caches.open('prayer-app-v2').then(function(cache) {
-                        cache.match(window.location.href).then(function(match) {
-                            if (!match) cache.add(window.location.href);
-                        });
-                    });
-                }
             }).catch(function(err) {
                 console.log('SW registration failed:', err);
             });
@@ -2423,6 +2486,82 @@
             closeDhikrModalBtn();
         }
     });
+
+    
+    // ==================== PRAYER SELECTOR ====================
+    function initPrayerSelector() {
+        var grid = document.getElementById('prayerSelectorGrid');
+        if (!grid) return;
+        grid.querySelectorAll('.prayer-check-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var p = btn.dataset.prayer;
+                if (enabledPrayers.has(p)) {
+                    // Keep at least 1 enabled
+                    if (enabledPrayers.size > 1) {
+                        enabledPrayers.delete(p);
+                        btn.classList.remove('selected');
+                    }
+                } else {
+                    enabledPrayers.add(p);
+                    btn.classList.add('selected');
+                }
+            });
+        });
+    }
+
+    // ==================== ADHAN SOUND ====================
+    function initAdhanSound() {
+        var sel = document.getElementById('adhanSoundSelect');
+        if (!sel) return;
+        sel.addEventListener('change', function() {
+            adhanSoundPref = sel.value;
+        });
+        // create audio element
+        adhanAudioEl = document.createElement('audio');
+        adhanAudioEl.preload = 'none';
+        adhanAudioEl.volume = 0.8;
+        document.body.appendChild(adhanAudioEl);
+    }
+
+    function playAdhanSound(prayerName) {
+        if (adhanSoundPref === 'none') return;
+        var url = ADHAN_URLS[adhanSoundPref];
+        if (!url) return;
+        if (adhanAudioEl) {
+            adhanAudioEl.src = url;
+            adhanAudioEl.play().catch(function() {
+                // autoplay blocked, will play on next user interaction
+            });
+        }
+    }
+
+    function checkAdhanTime() {
+        var city = cityPrayerTimes[currentCity];
+        if (!city) return;
+        var now = new Date();
+        var hhmm = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+        var todayKey = now.toDateString();
+        var prayers = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'sunrise'];
+        prayers.forEach(function(p) {
+            if (!enabledPrayers.has(p)) return;
+            var pTime = city[p];
+            if (!pTime) return;
+            var key = todayKey + '_adhan_' + p;
+            if (pTime === hhmm && !adhanNotifiedToday.has(key)) {
+                adhanNotifiedToday.add(key);
+                playAdhanSound(p);
+                // Also show notification
+                if (Notification && Notification.permission === 'granted') {
+                    new Notification('🕌 حان وقت صلاة ' + (prayerNames[p] ? prayerNames[p].ar : p), {
+                        body: 'الله أكبر الله أكبر — اللهم بلغنا الصلاة',
+                        icon: 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 192 192\'%3E%3Crect fill=\'%230a0f1a\' width=\'192\' height=\'192\' rx=\'32\'/%3E%3Ctext x=\'96\' y=\'120\' font-size=\'100\' text-anchor=\'middle\'%3E🕌%3C/text%3E%3C/svg%3E',
+                        tag: 'adhan-' + p,
+                        silent: true
+                    });
+                }
+            }
+        });
+    }
 
     </script>
 
